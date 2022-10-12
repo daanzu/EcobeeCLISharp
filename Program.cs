@@ -4,6 +4,7 @@ using I8Beef.Ecobee.Protocol;
 using I8Beef.Ecobee.Protocol.Objects;
 using I8Beef.Ecobee.Protocol.Functions;
 using I8Beef.Ecobee.Protocol.Thermostat;
+using ExtensionMethods;
 
 namespace EcobeeCLISharp
 {
@@ -23,12 +24,12 @@ namespace EcobeeCLISharp
             public string? Fan { get; set; }
 
             [Option('c', "cool", HelpText = "Set desired cool temperature.")]
-            public string? Cool { get; set; }
+            public decimal? Cool { get; set; }
 
             [Option('h', "heat", HelpText = "Set desired heat temperature.")]
-            public string? Heat { get; set; }
+            public decimal? Heat { get; set; }
 
-            [Option('v', "verbose", HelpText = "Prints all messages to standard output.")]
+            [Option('v', "verbose", Default = false, HelpText = "Prints all messages to standard output.")]
             public bool Verbose { get; set; }
         }
 
@@ -39,7 +40,7 @@ namespace EcobeeCLISharp
         {
             _verbose = options.Verbose;
 
-            var appApiKey = "";
+            var appApiKey = await ReadApiKeyFileAsync();
             var client = new Client(appApiKey, ReadTokenFileAsync, WriteTokenFileAsync);
 
             if (!File.Exists(@"token.txt"))
@@ -59,42 +60,15 @@ namespace EcobeeCLISharp
                 await ReadTokenFileAsync();
             }
 
-            VerboseWriteLine("Access Token: " + _currentAuthToken?.AccessToken);
-            VerboseWriteLine("Refresh Token: " + _currentAuthToken?.RefreshToken);
+            var initialThermostatResponse = await GetThermostatAsync(client);
+            PrintStatus(initialThermostatResponse);
 
-            var initialThermostatRequest = new ThermostatRequest
-            {
-                Selection = new Selection
-                {
-                    SelectionType = "registered",
-                    IncludeSettings = true,
-                    IncludeSensors = true,
-                    IncludeEquipmentStatus = true,
-                    IncludeWeather = true,
-                    IncludeDevice = true,
-                    IncludeEvents = true,
-                    IncludeProgram = true,
-                    IncludeRuntime = true,
-                    IncludeEnergy = true,
-                    IncludeElectricity = true,
-                    IncludeExtendedRuntime = true,
-                    IncludeNotificationSettings = true,
-                    IncludeAlerts = true,
-                    // Not authorized?
-                    // IncludeAudio = true,
-                    // IncludeSecuritySettings = true,
-                    // IncludeVersion = true,
-                    // IncludeOemCfg = true,
-                    // IncludeHouseDetails = true,
-                    // IncludeManagement = true,
-                    // IncludeTechnician = true,
-                    // IncludeLocation = true,
-                    // IncludeUtility = true,
-                    // IncludeCapabilities = true,
-                }
-            };
-            var initialThermostatResponse = await client.GetAsync<ThermostatRequest, ThermostatResponse>(initialThermostatRequest);
-            VerboseWriteLine(JsonSerializer<ThermostatResponse>.Serialize(initialThermostatResponse));
+            var thermostat = initialThermostatResponse.GetFirstThermostat();
+            var currentDesiredCoolTemp = ConvertTemperature(thermostat.Runtime.DesiredCool);
+            var currentDesiredHeatTemp = ConvertTemperature(thermostat.Runtime.DesiredHeat);
+            var heatCoolMinDelta = ConvertTemperature(thermostat.Settings.HeatCoolMinDelta);
+
+            // https://github.com/i8beef/HomeAutio.Mqtt.Ecobee/blob/master/src/HomeAutio.Mqtt.Ecobee/EcobeeMqttService.cs#L107
 
             var updateRequest = new ThermostatUpdateRequest
             {
@@ -105,6 +79,8 @@ namespace EcobeeCLISharp
                Functions = new List<Function>(),
             //    Thermostat = new { Settings = new { HvacMode = "auto" } }
             };
+
+            var holdType = "nextTransition";
 
             if (options.Fan != null)
             {
@@ -126,17 +102,73 @@ namespace EcobeeCLISharp
                     {
                         Params = new SetHoldParams
                         {
-                            HoldType = "nextTransition",
+                            HoldType = holdType,
                             Fan = mode
                         }
                     }
                 );
             }
 
-            var updateResponse = await client.PostAsync<ThermostatUpdateRequest, Response>(updateRequest);
-            VerboseWriteLine(JsonSerializer<Response>.Serialize(updateResponse));
+            if (options.Cool != null || true)
+            {
+                decimal temperature;
+                temperature = 75.5m;
+                updateRequest.Functions.Add(new SetHoldFunction
+                    {
+                        Params = new SetHoldParams
+                        {
+                            HoldType = holdType,
+                            CoolHoldTemp = ConvertTemperature(temperature),
+                            HeatHoldTemp = ConvertTemperature((temperature - currentDesiredHeatTemp < heatCoolMinDelta) ? (temperature - heatCoolMinDelta) : currentDesiredHeatTemp)
+                        }
+                    }
+                );
+            }
 
-            var finalThermostatRequest = new ThermostatRequest
+            var updateResponse = await client.PostAsync<ThermostatUpdateRequest, Response>(updateRequest);
+            // VerboseWriteLine(JsonSerializer<Response>.Serialize(updateResponse));
+            Console.WriteLine(JsonSerializer<Response>.Serialize(updateResponse));
+
+            var finalThermostatResponse = await GetThermostatAsync(client);
+            while (finalThermostatResponse.GetFirstThermostat().Runtime.LastModified == initialThermostatResponse.GetFirstThermostat().Runtime.LastModified)
+            {
+                if (_verbose || true)
+                {
+                    PrintStatus(finalThermostatResponse);
+                }
+                Console.WriteLine("Waiting for thermostat to update");
+                await Task.Delay(5000);
+                finalThermostatResponse = await GetThermostatAsync(client);
+            }
+            await Task.Delay(5000);
+            finalThermostatResponse = await GetThermostatAsync(client);
+            PrintStatus(finalThermostatResponse);
+
+            Console.ReadLine();
+
+            return 0;
+        }
+
+        private static void PrintStatus(ThermostatResponse thermostatResponse)
+        {
+            var thermostat = thermostatResponse.ThermostatList.First();
+            Console.WriteLine("Current Status:");
+            Console.WriteLine($"  Temperature: {thermostat.Runtime.ActualTemperature}");
+            Console.WriteLine($"  Humidity: {thermostat.Runtime.ActualHumidity}");
+            Console.WriteLine($"  Mode: {thermostat.Settings.HvacMode}");
+            Console.WriteLine($"  Desired Temperature Range: {thermostat.Runtime.DesiredHeat} - {thermostat.Runtime.DesiredCool}");
+            Console.WriteLine($"  Desired Fan: {thermostat.Runtime.DesiredFanMode}");
+            Console.WriteLine($"  Equipment Status: {thermostat.EquipmentStatus}");
+            Console.WriteLine($"  Last Status Modified: {thermostat.Runtime.LastStatusModified}");
+            Console.WriteLine($"  Last Modified: {thermostat.Runtime.LastModified}");
+        }
+
+        private static decimal ConvertTemperature(int? temperature) => Convert.ToDecimal(temperature) / 10;
+        private static int ConvertTemperature(decimal? temperature) => Convert.ToInt32(temperature * 10);
+
+        private static async Task<ThermostatResponse> GetThermostatAsync(Client client)
+        {
+            var request = new ThermostatRequest
             {
                 Selection = new Selection
                 {
@@ -167,10 +199,10 @@ namespace EcobeeCLISharp
                     // IncludeCapabilities = true,
                 }
             };
-            var finalThermostatResponse = await client.GetAsync<ThermostatRequest, ThermostatResponse>(finalThermostatRequest);
-            VerboseWriteLine(JsonSerializer<ThermostatResponse>.Serialize(finalThermostatResponse));
+            var response = await client.GetAsync<ThermostatRequest, ThermostatResponse>(request);
+            VerboseWriteLine(JsonSerializer<ThermostatResponse>.Serialize(response));
 
-            return 0;
+            return response;
         }
 
         public static async Task WriteTokenFileAsync(StoredAuthToken storedAuthToken, CancellationToken cancellationToken = default)
@@ -199,11 +231,17 @@ namespace EcobeeCLISharp
                     RefreshToken = tokenText[2]
                 };
 
-                Console.WriteLine("Access Token: " + _currentAuthToken.AccessToken);
-                Console.WriteLine("Refresh Token: " + _currentAuthToken.RefreshToken);
+                VerboseWriteLine("Access Token: " + _currentAuthToken.AccessToken);
+                VerboseWriteLine("Refresh Token: " + _currentAuthToken.RefreshToken);
             }
 
             return _currentAuthToken;
+        }
+
+        public static async Task<string> ReadApiKeyFileAsync(CancellationToken cancellationToken = default)
+        {
+            var fileText = await File.ReadAllLinesAsync(@"apikey.txt");
+            return fileText[0].Trim();
         }
 
         private static void VerboseWriteLine(string message)
@@ -214,5 +252,16 @@ namespace EcobeeCLISharp
             }
         }
 
+    }
+}
+
+namespace ExtensionMethods
+{
+    public static class EcobeeExtensions
+    {
+        public static Thermostat GetFirstThermostat(this ThermostatResponse thermostatResponse)
+        {
+            return thermostatResponse.ThermostatList.First();
+        }
     }
 }
