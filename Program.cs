@@ -24,10 +24,16 @@ namespace EcobeeCLISharp
             public string? Fan { get; set; }
 
             [Option('c', "cool", HelpText = "Set desired cool temperature.")]
-            public decimal? Cool { get; set; }
+            public string? Cool { get; set; }
 
             [Option('h', "heat", HelpText = "Set desired heat temperature.")]
-            public decimal? Heat { get; set; }
+            public string? Heat { get; set; }
+
+            [Option("holdtype", Default = "nextTransition", HelpText = "Set desired hold type.")]
+            public string? HoldType { get; set; }
+
+            [Option('h', "hold", HelpText = "Set desired hold.")]
+            public string? Hold { get; set; }
 
             [Option('v', "verbose", Default = false, HelpText = "Prints all messages to standard output.")]
             public bool Verbose { get; set; }
@@ -70,17 +76,9 @@ namespace EcobeeCLISharp
 
             // https://github.com/i8beef/HomeAutio.Mqtt.Ecobee/blob/master/src/HomeAutio.Mqtt.Ecobee/EcobeeMqttService.cs#L107
 
-            var updateRequest = new ThermostatUpdateRequest
-            {
-               Selection = new Selection
-               {
-                   SelectionType = "registered"
-               },
-               Functions = new List<Function>(),
-            //    Thermostat = new { Settings = new { HvacMode = "auto" } }
-            };
+            var holdParams = new SetHoldParams();
 
-            var holdType = "nextTransition";
+            // Handle input...
 
             if (options.Fan != null)
             {
@@ -98,36 +96,127 @@ namespace EcobeeCLISharp
                     Console.WriteLine("Invalid fan mode");
                     return 1;
                 }
-                updateRequest.Functions.Add(new SetHoldFunction
-                    {
-                        Params = new SetHoldParams
-                        {
-                            HoldType = holdType,
-                            Fan = mode
-                        }
-                    }
-                );
+                holdParams.Fan = mode;
             }
 
-            if (options.Cool != null || true)
+            if (options.Cool is not null)
             {
                 decimal temperature;
-                temperature = 75.5m;
-                updateRequest.Functions.Add(new SetHoldFunction
-                    {
-                        Params = new SetHoldParams
-                        {
-                            HoldType = holdType,
-                            CoolHoldTemp = ConvertTemperature(temperature),
-                            HeatHoldTemp = ConvertTemperature((temperature - currentDesiredHeatTemp < heatCoolMinDelta) ? (temperature - heatCoolMinDelta) : currentDesiredHeatTemp)
-                        }
-                    }
-                );
+                if (options.Cool.StartsWith("+"))
+                {
+                    temperature = currentDesiredCoolTemp + ConvertTemperature(options.Cool.Substring(1));
+                }
+                else if (options.Cool.StartsWith("-"))
+                {
+                    temperature = currentDesiredCoolTemp - ConvertTemperature(options.Cool.Substring(1));
+                }
+                else
+                {
+                    temperature = ConvertTemperature(options.Cool);
+                }
+                holdParams.CoolHoldTemp = ConvertTemperature(temperature);
             }
 
+            if (options.Heat is not null)
+            {
+                decimal temperature;
+                if (options.Heat.StartsWith("+"))
+                {
+                    temperature = currentDesiredHeatTemp + ConvertTemperature(options.Heat.Substring(1));
+                }
+                else if (options.Heat.StartsWith("-"))
+                {
+                    temperature = currentDesiredHeatTemp - ConvertTemperature(options.Heat.Substring(1));
+                }
+                else
+                {
+                    temperature = ConvertTemperature(options.Heat);
+                }
+                holdParams.HeatHoldTemp = ConvertTemperature(temperature);
+            }
+
+            if (options.HoldType != null)
+            {
+                string mode;
+                if (options.HoldType == "nextTransition")
+                {
+                    mode = "nextTransition";
+                }
+                else if (options.HoldType == "indefinite")
+                {
+                    mode = "indefinite";
+                }
+                else
+                {
+                    Console.WriteLine("Invalid hold mode");
+                    return 1;
+                }
+                holdParams.HoldType = mode;
+            }
+            else
+            {
+                holdParams.HoldType = "nextTransition";
+            }
+
+            // if (options.Hold != null)
+            // {
+            //     string mode;
+            //     if (options.Hold == "resumeProgram" || options.Hold == "resume")
+            //     {
+            //         mode = "resumeProgram";
+            //     }
+            //     else if (options.Hold == "hold")
+            //     {
+            //         mode = "hold";
+            //     }
+            //     else
+            //     {
+            //         Console.WriteLine("Invalid hold mode");
+            //         return 1;
+            //     }
+            //     holdParams.HoldClimateRef = mode;
+            // }
+
+            // Continue...
+
+            if (holdParams.HeatHoldTemp is null && holdParams.CoolHoldTemp is not null)
+            {
+                holdParams.HeatHoldTemp = ConvertTemperature((ConvertTemperature(holdParams.CoolHoldTemp) - currentDesiredHeatTemp < heatCoolMinDelta) ? (ConvertTemperature(holdParams.CoolHoldTemp) - heatCoolMinDelta) : currentDesiredHeatTemp);
+            }
+            if (holdParams.CoolHoldTemp is null && holdParams.HeatHoldTemp is not null)
+            {
+                holdParams.CoolHoldTemp = ConvertTemperature((currentDesiredCoolTemp - ConvertTemperature(holdParams.HeatHoldTemp) < heatCoolMinDelta) ? (ConvertTemperature(holdParams.HeatHoldTemp) + heatCoolMinDelta) : currentDesiredCoolTemp);
+            }
+
+            if (holdParams.CoolHoldTemp is not null && holdParams.CoolHoldTemp < thermostat.Settings.CoolRangeLow || holdParams.CoolHoldTemp > thermostat.Settings.CoolRangeHigh)
+            {
+                Console.WriteLine("Cool temperature out of range");
+                return 1;
+            }
+            if (holdParams.HeatHoldTemp is not null && holdParams.HeatHoldTemp < thermostat.Settings.HeatRangeLow || holdParams.HeatHoldTemp > thermostat.Settings.HeatRangeHigh)
+            {
+                Console.WriteLine("Heat temperature out of range");
+                return 1;
+            }
+
+            var updateRequest = new ThermostatUpdateRequest
+            {
+               Selection = new Selection
+               {
+                   SelectionType = "registered"
+               },
+            };
+            updateRequest.Functions = new List<Function>
+            {
+                new SetHoldFunction
+                {
+                    Params = holdParams
+                }
+            };
+
+            VerboseWriteLine(JsonSerializer<ThermostatUpdateRequest>.Serialize(updateRequest), true);
             var updateResponse = await client.PostAsync<ThermostatUpdateRequest, Response>(updateRequest);
-            // VerboseWriteLine(JsonSerializer<Response>.Serialize(updateResponse));
-            Console.WriteLine(JsonSerializer<Response>.Serialize(updateResponse));
+            VerboseWriteLine(JsonSerializer<Response>.Serialize(updateResponse), true);
 
             var finalThermostatResponse = await GetThermostatAsync(client);
             while (finalThermostatResponse.GetFirstThermostat().Runtime.LastModified == initialThermostatResponse.GetFirstThermostat().Runtime.LastModified)
@@ -144,6 +233,8 @@ namespace EcobeeCLISharp
             finalThermostatResponse = await GetThermostatAsync(client);
             PrintStatus(finalThermostatResponse);
 
+            Console.WriteLine();
+            Console.WriteLine("Press any key to continue...");
             Console.ReadLine();
 
             return 0;
@@ -165,6 +256,7 @@ namespace EcobeeCLISharp
 
         private static decimal ConvertTemperature(int? temperature) => Convert.ToDecimal(temperature) / 10;
         private static int ConvertTemperature(decimal? temperature) => Convert.ToInt32(temperature * 10);
+        private static decimal ConvertTemperature(string? temperature) => Convert.ToDecimal(temperature);
 
         private static async Task<ThermostatResponse> GetThermostatAsync(Client client)
         {
@@ -244,9 +336,9 @@ namespace EcobeeCLISharp
             return fileText[0].Trim();
         }
 
-        private static void VerboseWriteLine(string message)
+        private static void VerboseWriteLine(string message, bool force = false)
         {
-            if (_verbose)
+            if (_verbose || force)
             {
                 Console.WriteLine(message);
             }
