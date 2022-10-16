@@ -20,23 +20,32 @@ namespace EcobeeCLISharp
 
         public class Options
         {
-            [Option('f', "fan", HelpText = "Set desired fan mode.")]
+            [Option('f', "fan", SetName = "holdparams", HelpText = "Set desired fan mode")]
             public string? Fan { get; set; }
 
-            [Option('c', "cool", HelpText = "Set desired cool temperature.")]
+            [Option('c', "cool", SetName = "holdparams", HelpText = "Set desired cool temperature")]
             public string? Cool { get; set; }
 
-            [Option('h', "heat", HelpText = "Set desired heat temperature.")]
+            [Option('h', "heat", SetName = "holdparams", HelpText = "Set desired heat temperature")]
             public string? Heat { get; set; }
 
-            [Option("holdtype", Default = "nextTransition", HelpText = "Set desired hold type.")]
+            [Option("holdtype", Default = "nextTransition", SetName = "holdparams", HelpText = "Set desired hold type: nextTransition/next, indefinite")]
             public string? HoldType { get; set; }
 
-            [Option('h', "hold", HelpText = "Set desired hold.")]
+            [Option('h', "hold", SetName = "holdprogram", HelpText = "Set desired hold program: resumeProgram/resume, [program name]")]
             public string? Hold { get; set; }
 
-            [Option('v', "verbose", Default = false, HelpText = "Prints all messages to standard output.")]
+            [Option('v', "verbose", Default = false, HelpText = "Print all messages to standard output")]
             public bool Verbose { get; set; }
+
+            [Option("infobefore", Default = false, HelpText = "Print thermostat info before updating")]
+            public bool InfoBefore { get; set; }
+
+            [Option("infoafter", Default = false, HelpText = "Print thermostat info after updating")]
+            public bool InfoAfter { get; set; }
+
+            [Option("wait", Default = false, HelpText = "Wait for key to be pressed before exiting")]
+            public bool Wait { get; set; }
         }
 
         private static bool _verbose = false;
@@ -67,7 +76,11 @@ namespace EcobeeCLISharp
             }
 
             var initialThermostatResponse = await GetThermostatAsync(client);
-            PrintStatus(initialThermostatResponse);
+
+            if (options.InfoBefore)
+            {
+                PrintStatus(initialThermostatResponse);
+            }
 
             var thermostat = initialThermostatResponse.GetFirstThermostat();
             var currentDesiredCoolTemp = ConvertTemperature(thermostat.Runtime.DesiredCool);
@@ -138,7 +151,7 @@ namespace EcobeeCLISharp
             if (options.HoldType != null)
             {
                 string mode;
-                if (options.HoldType == "nextTransition")
+                if (options.HoldType == "nextTransition" || options.HoldType == "next")
                 {
                     mode = "nextTransition";
                 }
@@ -177,13 +190,18 @@ namespace EcobeeCLISharp
             //     holdParams.HoldClimateRef = mode;
             // }
 
-            // Continue...
+            // Validation...
 
-            if (holdParams.HeatHoldTemp is null && holdParams.CoolHoldTemp is not null)
+            if (holdParams.HeatHoldTemp is not null && holdParams.CoolHoldTemp is not null && holdParams.CoolHoldTemp - holdParams.HeatHoldTemp < heatCoolMinDelta)
+            {
+                Console.WriteLine("Heat temperature must be less than cool temperature by at least " + heatCoolMinDelta + " degrees");
+                return 1;
+            }
+            else if (holdParams.HeatHoldTemp is null && holdParams.CoolHoldTemp is not null)
             {
                 holdParams.HeatHoldTemp = ConvertTemperature((ConvertTemperature(holdParams.CoolHoldTemp) - currentDesiredHeatTemp < heatCoolMinDelta) ? (ConvertTemperature(holdParams.CoolHoldTemp) - heatCoolMinDelta) : currentDesiredHeatTemp);
             }
-            if (holdParams.CoolHoldTemp is null && holdParams.HeatHoldTemp is not null)
+            else if (holdParams.CoolHoldTemp is null && holdParams.HeatHoldTemp is not null)
             {
                 holdParams.CoolHoldTemp = ConvertTemperature((currentDesiredCoolTemp - ConvertTemperature(holdParams.HeatHoldTemp) < heatCoolMinDelta) ? (ConvertTemperature(holdParams.HeatHoldTemp) + heatCoolMinDelta) : currentDesiredCoolTemp);
             }
@@ -198,6 +216,8 @@ namespace EcobeeCLISharp
                 Console.WriteLine("Heat temperature out of range");
                 return 1;
             }
+
+            // Perform update...
 
             var updateRequest = new ThermostatUpdateRequest
             {
@@ -218,24 +238,30 @@ namespace EcobeeCLISharp
             var updateResponse = await client.PostAsync<ThermostatUpdateRequest, Response>(updateRequest);
             VerboseWriteLine(JsonSerializer<Response>.Serialize(updateResponse), true);
 
-            var finalThermostatResponse = await GetThermostatAsync(client);
-            while (finalThermostatResponse.GetFirstThermostat().Runtime.LastModified == initialThermostatResponse.GetFirstThermostat().Runtime.LastModified)
+            if (options.InfoAfter)
             {
-                if (_verbose || true)
+                var finalThermostatResponse = await GetThermostatAsync(client);
+                while (finalThermostatResponse.GetFirstThermostat().Runtime.LastModified == initialThermostatResponse.GetFirstThermostat().Runtime.LastModified)
                 {
-                    PrintStatus(finalThermostatResponse);
+                    if (_verbose || true)
+                    {
+                        PrintStatus(finalThermostatResponse);
+                    }
+                    Console.WriteLine("Waiting for thermostat to update");
+                    await Task.Delay(1000);
+                    finalThermostatResponse = await GetThermostatAsync(client);
                 }
-                Console.WriteLine("Waiting for thermostat to update");
-                await Task.Delay(5000);
+                await Task.Delay(1000);
                 finalThermostatResponse = await GetThermostatAsync(client);
+                PrintStatus(finalThermostatResponse);
             }
-            await Task.Delay(5000);
-            finalThermostatResponse = await GetThermostatAsync(client);
-            PrintStatus(finalThermostatResponse);
 
-            Console.WriteLine();
-            Console.WriteLine("Press any key to continue...");
-            Console.ReadLine();
+            if (options.Wait)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Press any key to continue...");
+                Console.ReadKey();
+            }
 
             return 0;
         }
@@ -252,6 +278,11 @@ namespace EcobeeCLISharp
             Console.WriteLine($"  Equipment Status: {thermostat.EquipmentStatus}");
             Console.WriteLine($"  Last Status Modified: {thermostat.Runtime.LastStatusModified}");
             Console.WriteLine($"  Last Modified: {thermostat.Runtime.LastModified}");
+            if (thermostat.Events.Count > 0)
+            {
+                var currentEvent = thermostat.Events.First();
+                Console.WriteLine($"  Current Event: End Time: {currentEvent.EndTime}");
+            }
         }
 
         private static decimal ConvertTemperature(int? temperature) => Convert.ToDecimal(temperature) / 10;

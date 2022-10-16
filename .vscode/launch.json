@@ -10,15 +10,19 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/bin/Debug/net6.0/EcobeeCLISharp.dll",
+            // "program": "${workspaceFolder}/bin/Debug/net6.0/EcobeeCLISharp.dll",
+            "program": "${workspaceFolder}/bin/Debug/net6.0/win-x64/EcobeeCLISharp.dll",
             // "args": [],
             // "args": ["--fan=off"],
             // "args": ["--fan=on"],
             "args": [
                 // "--fan=off",
                 "--fan=on",
-                // "--cool=77",
-                "--heat=74",
+                // "--cool=78",
+                "--heat=74.5",
+                "--infobefore",
+                // "--infoafter",
+                // "--wait",
             ],
             "cwd": "${workspaceFolder}",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
