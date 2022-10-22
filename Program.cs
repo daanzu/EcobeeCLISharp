@@ -46,19 +46,36 @@ namespace EcobeeCLISharp
 
             [Option("wait", Default = false, HelpText = "Wait for key to be pressed before exiting")]
             public bool Wait { get; set; }
+
+            [Option("hide", Default = false, HelpText = "Hide console window (Windows only)")]
+            public bool HideConsole { get; set; }
         }
 
         private static bool _verbose = false;
+        private static string? _appApiKey;
         private static StoredAuthToken? _currentAuthToken;
+
+        private static readonly string CredentialsFilePath = Path.Combine(AppContext.BaseDirectory, "ecobee_credentials.txt");
 
         private static async Task<int> RunOptionsAndReturnExitCode(Options options)
         {
             _verbose = options.Verbose;
 
-            var appApiKey = await ReadApiKeyFileAsync();
-            var client = new Client(appApiKey, ReadTokenFileAsync, WriteTokenFileAsync);
+            if (options.HideConsole)
+            {
+                Daanzu.Utils.HideConsoleWindow();
+            }
 
-            if (!File.Exists(@"token.txt"))
+            if (!File.Exists(CredentialsFilePath))
+            {
+                Console.WriteLine("Credentials file not found. Please create ecobee_credentials.txt in the same directory as this executable.");
+                return 1;
+            }
+
+            _appApiKey = await ReadApiKeyFileAsync();
+            var client = new Client(_appApiKey, ReadTokenFileAsync, WriteTokenFileAsync);
+
+            if (!await HaveTokenFileAsync())
             {
                 Console.WriteLine("Getting new tokens");
                 var pin = await client.GetPinAsync();
@@ -335,23 +352,24 @@ namespace EcobeeCLISharp
 
             // Write token to persistent store
             var text = new System.Text.StringBuilder();
+            text.AppendLine(_appApiKey);
             text.AppendLine($"{storedAuthToken.TokenExpiration:MM/dd/yy hh:mm:ss tt}");
             text.AppendLine(storedAuthToken.AccessToken);
             text.AppendLine(storedAuthToken.RefreshToken);
 
-            await File.WriteAllTextAsync(@"token.txt", text.ToString());
+            await File.WriteAllTextAsync(CredentialsFilePath, text.ToString());
         }
 
         public static async Task<StoredAuthToken?> ReadTokenFileAsync(CancellationToken cancellationToken = default)
         {
-            if (_currentAuthToken == null && File.Exists(@"token.txt"))
+            if (_currentAuthToken == null && File.Exists(CredentialsFilePath))
             {
-                var tokenText = await File.ReadAllLinesAsync(@"token.txt");
+                var fileText = await File.ReadAllLinesAsync(CredentialsFilePath);
                 _currentAuthToken = new StoredAuthToken
                 {
-                    TokenExpiration = DateTime.Parse(tokenText[0]),
-                    AccessToken = tokenText[1],
-                    RefreshToken = tokenText[2]
+                    TokenExpiration = DateTime.Parse(fileText[1]),
+                    AccessToken = fileText[2],
+                    RefreshToken = fileText[3],
                 };
 
                 VerboseWriteLine("Access Token: " + _currentAuthToken.AccessToken);
@@ -361,9 +379,23 @@ namespace EcobeeCLISharp
             return _currentAuthToken;
         }
 
+        public static async Task<bool> HaveTokenFileAsync(CancellationToken cancellationToken = default)
+        {
+            if (!File.Exists(CredentialsFilePath))
+            {
+                return false;
+            }
+            var fileText = await File.ReadAllLinesAsync(CredentialsFilePath);
+            if (fileText.Length < 4)
+            {
+                return false;
+            }
+            return true;
+        }
+
         public static async Task<string> ReadApiKeyFileAsync(CancellationToken cancellationToken = default)
         {
-            var fileText = await File.ReadAllLinesAsync(@"apikey.txt");
+            var fileText = await File.ReadAllLinesAsync(CredentialsFilePath);
             return fileText[0].Trim();
         }
 
@@ -386,5 +418,31 @@ namespace ExtensionMethods
         {
             return thermostatResponse.ThermostatList.First();
         }
+    }
+}
+
+namespace Daanzu
+{
+    using System.Runtime.InteropServices;
+
+    public class Utils
+    {
+        public static void HideConsoleWindow()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                var handle = GetConsoleWindow();
+                ShowWindow(handle, SW_HIDE);
+            }
+        }
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        const int SW_HIDE = 0;
+        const int SW_SHOW = 5;
     }
 }
