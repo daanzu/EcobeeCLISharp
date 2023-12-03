@@ -44,6 +44,9 @@ namespace EcobeeCLISharp
             [Option("infoafter", Default = false, HelpText = "Print thermostat info after updating")]
             public bool InfoAfter { get; set; }
 
+            [Option("infoaftertimeout", Default = 10*60, HelpText = "Timeout in seconds for printing thermostat info after updating")]
+            public int InfoAfterTimeout { get; set; }
+
             [Option("wait", Default = false, HelpText = "Wait for key to be pressed before exiting")]
             public bool Wait { get; set; }
 
@@ -257,9 +260,15 @@ namespace EcobeeCLISharp
 
             if (options.InfoAfter)
             {
+                var timeoutTime = DateTime.Now.AddSeconds(options.InfoAfterTimeout);
                 var finalThermostatResponse = await GetThermostatAsync(client);
                 while (finalThermostatResponse.GetFirstThermostat().Runtime.LastModified == initialThermostatResponse.GetFirstThermostat().Runtime.LastModified)
                 {
+                    if (DateTime.Now > timeoutTime)
+                    {
+                        Console.WriteLine("Timeout waiting for thermostat to update");
+                        break;
+                    }
                     if (_verbose || true)
                     {
                         PrintStatus(finalThermostatResponse);

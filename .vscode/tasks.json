@@ -20,7 +20,7 @@
             "args": [
                 "publish",
                 "${workspaceFolder}/EcobeeCLISharp.csproj",
-                // "-c", "Release",
+                "-c", "Release",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary"
             ],
