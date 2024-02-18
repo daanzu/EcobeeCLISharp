@@ -23,17 +23,17 @@ namespace EcobeeCLISharp
             [Option('f', "fan", SetName = "holdparams", HelpText = "Set desired fan mode")]
             public string? Fan { get; set; }
 
-            [Option('c', "cool", SetName = "holdparams", HelpText = "Set desired cool temperature")]
+            [Option('c', "cool", SetName = "holdparams", HelpText = "Set desired cool temperature (should be heat < cool temperature)")]
             public string? Cool { get; set; }
 
-            [Option('h', "heat", SetName = "holdparams", HelpText = "Set desired heat temperature")]
+            [Option('h', "heat", SetName = "holdparams", HelpText = "Set desired heat temperature (should be heat < cool temperature)")]
             public string? Heat { get; set; }
 
             [Option("holdtype", Default = "nextTransition", SetName = "holdparams", HelpText = "Set desired hold type: nextTransition/next, indefinite")]
             public string? HoldType { get; set; }
 
-            [Option('h', "hold", SetName = "holdprogram", HelpText = "Set desired hold program: resumeProgram/resume, [program name]")]
-            public string? Hold { get; set; }
+            // [Option('h', "hold", SetName = "holdprogram", HelpText = "Set desired hold program: resumeProgram/resume, [program name]")]
+            // public string? Hold { get; set; }
 
             [Option('v', "verbose", Default = false, HelpText = "Print all messages to standard output")]
             public bool Verbose { get; set; }
@@ -103,15 +103,31 @@ namespace EcobeeCLISharp
             }
 
             var thermostat = initialThermostatResponse.GetFirstThermostat();
-            var currentDesiredCoolTemp = ConvertTemperature(thermostat.Runtime.DesiredCool);
-            var currentDesiredHeatTemp = ConvertTemperature(thermostat.Runtime.DesiredHeat);
-            var heatCoolMinDelta = ConvertTemperature(thermostat.Settings.HeatCoolMinDelta);
+
+            if (thermostat.Runtime.DesiredCool is null)
+            {
+                Console.WriteLine("Desired cool temperature not set");
+                return 1;
+            }
+            if (thermostat.Runtime.DesiredHeat is null)
+            {
+                Console.WriteLine("Desired heat temperature not set");
+                return 1;
+            }
+            if (thermostat.Settings.HeatCoolMinDelta is null)
+            {
+                Console.WriteLine("Heat cool min delta not set");
+                return 1;
+            }
+            var currentDesiredCoolTemp = ConvertTemperature(thermostat.Runtime.DesiredCool.Value);
+            var currentDesiredHeatTemp = ConvertTemperature(thermostat.Runtime.DesiredHeat.Value);
+            var heatCoolMinDelta = ConvertTemperature(thermostat.Settings.HeatCoolMinDelta.Value);
 
             // https://github.com/i8beef/HomeAutio.Mqtt.Ecobee/blob/master/src/HomeAutio.Mqtt.Ecobee/EcobeeMqttService.cs#L107
 
             var holdParams = new SetHoldParams();
 
-            // Handle input...
+            // Handle input to set settings............................................................................
 
             if (options.Fan != null)
             {
@@ -134,40 +150,15 @@ namespace EcobeeCLISharp
 
             if (options.Cool is not null)
             {
-                decimal temperature;
-                if (options.Cool.StartsWith("+"))
-                {
-                    temperature = currentDesiredCoolTemp + ConvertTemperature(options.Cool.Substring(1));
-                }
-                else if (options.Cool.StartsWith("-"))
-                {
-                    temperature = currentDesiredCoolTemp - ConvertTemperature(options.Cool.Substring(1));
-                }
-                else
-                {
-                    temperature = ConvertTemperature(options.Cool);
-                }
-                holdParams.CoolHoldTemp = ConvertTemperature(temperature);
+                holdParams.CoolHoldTemp = ConvertTemperature(ConvertPossiblyRelativeTemperature(options.Cool, currentDesiredCoolTemp));
             }
 
             if (options.Heat is not null)
             {
-                decimal temperature;
-                if (options.Heat.StartsWith("+"))
-                {
-                    temperature = currentDesiredHeatTemp + ConvertTemperature(options.Heat.Substring(1));
-                }
-                else if (options.Heat.StartsWith("-"))
-                {
-                    temperature = currentDesiredHeatTemp - ConvertTemperature(options.Heat.Substring(1));
-                }
-                else
-                {
-                    temperature = ConvertTemperature(options.Heat);
-                }
-                holdParams.HeatHoldTemp = ConvertTemperature(temperature);
+                holdParams.HeatHoldTemp = ConvertTemperature(ConvertPossiblyRelativeTemperature(options.Heat, currentDesiredHeatTemp));
             }
 
+            // NOTE: This appears to have no effect?
             if (options.HoldType != null)
             {
                 string mode;
@@ -191,6 +182,7 @@ namespace EcobeeCLISharp
                 holdParams.HoldType = "nextTransition";
             }
 
+            // NOTE: This doesn't work?
             // if (options.Hold != null)
             // {
             //     string mode;
@@ -210,7 +202,7 @@ namespace EcobeeCLISharp
             //     holdParams.HoldClimateRef = mode;
             // }
 
-            // Validation...
+            // Validation..............................................................................................
 
             if (holdParams.HeatHoldTemp is not null && holdParams.CoolHoldTemp is not null && holdParams.CoolHoldTemp - holdParams.HeatHoldTemp < heatCoolMinDelta)
             {
@@ -219,11 +211,11 @@ namespace EcobeeCLISharp
             }
             else if (holdParams.HeatHoldTemp is null && holdParams.CoolHoldTemp is not null)
             {
-                holdParams.HeatHoldTemp = ConvertTemperature((ConvertTemperature(holdParams.CoolHoldTemp) - currentDesiredHeatTemp < heatCoolMinDelta) ? (ConvertTemperature(holdParams.CoolHoldTemp) - heatCoolMinDelta) : currentDesiredHeatTemp);
+                holdParams.HeatHoldTemp = ConvertTemperature((ConvertTemperature(holdParams.CoolHoldTemp.Value) - currentDesiredHeatTemp < heatCoolMinDelta) ? (ConvertTemperature(holdParams.CoolHoldTemp.Value) - heatCoolMinDelta) : currentDesiredHeatTemp);
             }
             else if (holdParams.CoolHoldTemp is null && holdParams.HeatHoldTemp is not null)
             {
-                holdParams.CoolHoldTemp = ConvertTemperature((currentDesiredCoolTemp - ConvertTemperature(holdParams.HeatHoldTemp) < heatCoolMinDelta) ? (ConvertTemperature(holdParams.HeatHoldTemp) + heatCoolMinDelta) : currentDesiredCoolTemp);
+                holdParams.CoolHoldTemp = ConvertTemperature((currentDesiredCoolTemp - ConvertTemperature(holdParams.HeatHoldTemp.Value) < heatCoolMinDelta) ? (ConvertTemperature(holdParams.HeatHoldTemp.Value) + heatCoolMinDelta) : currentDesiredCoolTemp);
             }
 
             if (holdParams.CoolHoldTemp is not null && holdParams.CoolHoldTemp < thermostat.Settings.CoolRangeLow || holdParams.CoolHoldTemp > thermostat.Settings.CoolRangeHigh)
@@ -237,26 +229,9 @@ namespace EcobeeCLISharp
                 return 1;
             }
 
-            // Perform update...
+            // Perform update..........................................................................................
 
-            var updateRequest = new ThermostatUpdateRequest
-            {
-               Selection = new Selection
-               {
-                   SelectionType = "registered"
-               },
-            };
-            updateRequest.Functions = new List<Function>
-            {
-                new SetHoldFunction
-                {
-                    Params = holdParams
-                }
-            };
-
-            VerboseWriteLine(JsonSerializer<ThermostatUpdateRequest>.Serialize(updateRequest), true);
-            var updateResponse = await client.PostAsync<ThermostatUpdateRequest, Response>(updateRequest);
-            VerboseWriteLine(JsonSerializer<Response>.Serialize(updateResponse), true);
+            await UpdateThermostatAsync(client, holdParams);
 
             if (options.InfoAfter)
             {
@@ -296,6 +271,7 @@ namespace EcobeeCLISharp
         {
             var thermostat = thermostatResponse.ThermostatList.First();
             Console.WriteLine("Current Status:");
+            // Console.WriteLine($"  Name: {thermostat.Name}");
             Console.WriteLine($"  Temperature: {thermostat.Runtime.ActualTemperature}");
             Console.WriteLine($"  Humidity: {thermostat.Runtime.ActualHumidity}");
             Console.WriteLine($"  Mode: {thermostat.Settings.HvacMode}");
@@ -311,9 +287,25 @@ namespace EcobeeCLISharp
             }
         }
 
-        private static decimal ConvertTemperature(int? temperature) => Convert.ToDecimal(temperature) / 10;
-        private static int ConvertTemperature(decimal? temperature) => Convert.ToInt32(temperature * 10);
-        private static decimal ConvertTemperature(string? temperature) => Convert.ToDecimal(temperature);
+        private static decimal ConvertTemperature(int temperature) => Convert.ToDecimal(temperature) / 10;
+        private static int ConvertTemperature(decimal temperature) => Convert.ToInt32(temperature * 10);
+        private static decimal ConvertTemperature(string temperature) => Convert.ToDecimal(temperature);
+
+        private static decimal ConvertPossiblyRelativeTemperature(string temperature, decimal currentTemperature)
+        {
+            if (temperature.StartsWith("+"))
+            {
+                return currentTemperature + ConvertTemperature(temperature.Substring(1));
+            }
+            else if (temperature.StartsWith("-"))
+            {
+                return currentTemperature - ConvertTemperature(temperature.Substring(1));
+            }
+            else
+            {
+                return ConvertTemperature(temperature);
+            }
+        }
 
         private static async Task<ThermostatResponse> GetThermostatAsync(Client client)
         {
@@ -335,7 +327,7 @@ namespace EcobeeCLISharp
                     IncludeExtendedRuntime = true,
                     IncludeNotificationSettings = true,
                     IncludeAlerts = true,
-                    // Not authorized?
+                    // NOTE: Not authorized?
                     // IncludeAudio = true,
                     // IncludeSecuritySettings = true,
                     // IncludeVersion = true,
@@ -354,7 +346,29 @@ namespace EcobeeCLISharp
             return response;
         }
 
-        public static async Task WriteTokenFileAsync(StoredAuthToken storedAuthToken, CancellationToken cancellationToken = default)
+        private static async Task UpdateThermostatAsync(Client client, SetHoldParams holdParams)
+        {
+            var updateRequest = new ThermostatUpdateRequest
+            {
+                Selection = new Selection
+                {
+                    SelectionType = "registered"
+                },
+                Functions = new List<Function>
+                {
+                    new SetHoldFunction
+                    {
+                        Params = holdParams
+                    }
+                }
+            };
+
+            VerboseWriteLine(JsonSerializer<ThermostatUpdateRequest>.Serialize(updateRequest), true);
+            var updateResponse = await client.PostAsync<ThermostatUpdateRequest, Response>(updateRequest);
+            VerboseWriteLine(JsonSerializer<Response>.Serialize(updateResponse), true);
+        }
+
+        private static async Task WriteTokenFileAsync(StoredAuthToken storedAuthToken, CancellationToken cancellationToken = default)
         {
             // Cache the returned tokens
             _currentAuthToken = storedAuthToken;
@@ -369,7 +383,7 @@ namespace EcobeeCLISharp
             await File.WriteAllTextAsync(CredentialsFilePath, text.ToString());
         }
 
-        public static async Task<StoredAuthToken?> ReadTokenFileAsync(CancellationToken cancellationToken = default)
+        private static async Task<StoredAuthToken?> ReadTokenFileAsync(CancellationToken cancellationToken = default)
         {
             if (_currentAuthToken == null && File.Exists(CredentialsFilePath))
             {
@@ -388,7 +402,7 @@ namespace EcobeeCLISharp
             return _currentAuthToken;
         }
 
-        public static async Task<bool> HaveTokenFileAsync(CancellationToken cancellationToken = default)
+        private static async Task<bool> HaveTokenFileAsync(CancellationToken cancellationToken = default)
         {
             if (!File.Exists(CredentialsFilePath))
             {
@@ -402,7 +416,7 @@ namespace EcobeeCLISharp
             return true;
         }
 
-        public static async Task<string> ReadApiKeyFileAsync(CancellationToken cancellationToken = default)
+        private static async Task<string> ReadApiKeyFileAsync(CancellationToken cancellationToken = default)
         {
             var fileText = await File.ReadAllLinesAsync(CredentialsFilePath);
             return fileText[0].Trim();
@@ -419,6 +433,7 @@ namespace EcobeeCLISharp
     }
 }
 
+
 namespace ExtensionMethods
 {
     public static class EcobeeExtensions
@@ -429,6 +444,7 @@ namespace ExtensionMethods
         }
     }
 }
+
 
 namespace Daanzu
 {
