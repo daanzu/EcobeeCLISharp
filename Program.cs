@@ -150,12 +150,12 @@ namespace EcobeeCLISharp
 
             if (options.Cool is not null)
             {
-                holdParams.CoolHoldTemp = ConvertTemperature(ConvertPossiblyRelativeTemperature(options.Cool, currentDesiredCoolTemp));
+                holdParams.CoolHoldTemp = ConvertTemperature(ParsePossiblyRelativeTemperature(options.Cool, currentDesiredCoolTemp));
             }
 
             if (options.Heat is not null)
             {
-                holdParams.HeatHoldTemp = ConvertTemperature(ConvertPossiblyRelativeTemperature(options.Heat, currentDesiredHeatTemp));
+                holdParams.HeatHoldTemp = ConvertTemperature(ParsePossiblyRelativeTemperature(options.Heat, currentDesiredHeatTemp));
             }
 
             // NOTE: This appears to have no effect?
@@ -179,7 +179,8 @@ namespace EcobeeCLISharp
             }
             else
             {
-                holdParams.HoldType = "nextTransition";
+                // NOTE: Omitting this parameter seems to behave differently from any of the choices, but not sure exactly how it behaves
+                // holdParams.HoldType = "nextTransition";
             }
 
             // NOTE: This doesn't work?
@@ -287,23 +288,24 @@ namespace EcobeeCLISharp
             }
         }
 
-        private static decimal ConvertTemperature(int temperature) => Convert.ToDecimal(temperature) / 10;
-        private static int ConvertTemperature(decimal temperature) => Convert.ToInt32(temperature * 10);
-        private static decimal ConvertTemperature(string temperature) => Convert.ToDecimal(temperature);
+        private static decimal ConvertTemperature(int temperature) => Convert.ToDecimal(temperature) / 10;  // Convert from API's tenths of a degree to degrees
+        private static int ConvertTemperature(decimal temperature) => Convert.ToInt32(temperature * 10);  // Convert from degrees to API's tenths of a degree
 
-        private static decimal ConvertPossiblyRelativeTemperature(string temperature, decimal currentTemperature)
+        private static decimal ParseTemperature(string temperature) => Convert.ToDecimal(temperature);
+
+        private static decimal ParsePossiblyRelativeTemperature(string temperature, decimal currentTemperature)
         {
             if (temperature.StartsWith("+"))
             {
-                return currentTemperature + ConvertTemperature(temperature.Substring(1));
+                return currentTemperature + ParseTemperature(temperature.Substring(1));
             }
             else if (temperature.StartsWith("-"))
             {
-                return currentTemperature - ConvertTemperature(temperature.Substring(1));
+                return currentTemperature - ParseTemperature(temperature.Substring(1));
             }
             else
             {
-                return ConvertTemperature(temperature);
+                return ParseTemperature(temperature);
             }
         }
 
