@@ -71,7 +71,7 @@ namespace EcobeeCLISharp
 
             if (!File.Exists(CredentialsFilePath))
             {
-                Console.WriteLine("Credentials file not found. Please create ecobee_credentials.txt in the same directory as this executable.");
+                WriteLine("Credentials file not found. Please create ecobee_credentials.txt in the same directory as this executable.");
                 return 1;
             }
 
@@ -80,11 +80,11 @@ namespace EcobeeCLISharp
 
             if (!await HaveTokenFileAsync())
             {
-                Console.WriteLine("Getting new tokens");
+                WriteLine("Getting new tokens");
                 var pin = await client.GetPinAsync();
 
-                Console.WriteLine("Pin: " + pin.EcobeePin);
-                Console.WriteLine("You have " + pin.ExpiresIn + " minutes to enter this on the Ecobee site and hit enter.");
+                WriteLine("Pin: " + pin.EcobeePin);
+                WriteLine("You have " + pin.ExpiresIn + " minutes to enter this on the Ecobee site and hit enter.");
                 Console.ReadLine();
 
                 await client.GetAccessTokenAsync(pin.Code);
@@ -106,17 +106,17 @@ namespace EcobeeCLISharp
 
             if (thermostat.Runtime.DesiredCool is null)
             {
-                Console.WriteLine("Desired cool temperature not set");
+                WriteLine("Desired cool temperature not set");
                 return 1;
             }
             if (thermostat.Runtime.DesiredHeat is null)
             {
-                Console.WriteLine("Desired heat temperature not set");
+                WriteLine("Desired heat temperature not set");
                 return 1;
             }
             if (thermostat.Settings.HeatCoolMinDelta is null)
             {
-                Console.WriteLine("Heat cool min delta not set");
+                WriteLine("Heat cool min delta not set");
                 return 1;
             }
             var currentDesiredCoolTemp = ConvertTemperature(thermostat.Runtime.DesiredCool.Value);
@@ -142,7 +142,7 @@ namespace EcobeeCLISharp
                 }
                 else
                 {
-                    Console.WriteLine("Invalid fan mode");
+                    WriteLine("Invalid fan mode");
                     return 1;
                 }
                 holdParams.Fan = mode;
@@ -172,7 +172,7 @@ namespace EcobeeCLISharp
                 }
                 else
                 {
-                    Console.WriteLine("Invalid hold mode");
+                    WriteLine("Invalid hold mode");
                     return 1;
                 }
                 holdParams.HoldType = mode;
@@ -197,7 +197,7 @@ namespace EcobeeCLISharp
             //     }
             //     else
             //     {
-            //         Console.WriteLine("Invalid hold mode");
+            //         WriteLine("Invalid hold mode");
             //         return 1;
             //     }
             //     holdParams.HoldClimateRef = mode;
@@ -207,7 +207,7 @@ namespace EcobeeCLISharp
 
             if (holdParams.HeatHoldTemp is not null && holdParams.CoolHoldTemp is not null && holdParams.CoolHoldTemp - holdParams.HeatHoldTemp < heatCoolMinDelta)
             {
-                Console.WriteLine("Heat temperature must be less than cool temperature by at least " + heatCoolMinDelta + " degrees");
+                WriteLine("Heat temperature must be less than cool temperature by at least " + heatCoolMinDelta + " degrees");
                 return 1;
             }
             else if (holdParams.HeatHoldTemp is null && holdParams.CoolHoldTemp is not null)
@@ -221,12 +221,12 @@ namespace EcobeeCLISharp
 
             if (holdParams.CoolHoldTemp is not null && holdParams.CoolHoldTemp < thermostat.Settings.CoolRangeLow || holdParams.CoolHoldTemp > thermostat.Settings.CoolRangeHigh)
             {
-                Console.WriteLine("Cool temperature out of range");
+                WriteLine("Cool temperature out of range");
                 return 1;
             }
             if (holdParams.HeatHoldTemp is not null && holdParams.HeatHoldTemp < thermostat.Settings.HeatRangeLow || holdParams.HeatHoldTemp > thermostat.Settings.HeatRangeHigh)
             {
-                Console.WriteLine("Heat temperature out of range");
+                WriteLine("Heat temperature out of range");
                 return 1;
             }
 
@@ -242,14 +242,14 @@ namespace EcobeeCLISharp
                 {
                     if (DateTime.Now > timeoutTime)
                     {
-                        Console.WriteLine("Timeout waiting for thermostat to update");
+                        WriteLine("Timeout waiting for thermostat to update");
                         break;
                     }
                     if (_verbose || true)
                     {
                         PrintStatus(finalThermostatResponse);
                     }
-                    Console.WriteLine("Waiting for thermostat to update");
+                    WriteLine("Waiting for thermostat to update");
                     await Task.Delay(1000);
                     finalThermostatResponse = await GetThermostatAsync(client);
                 }
@@ -260,8 +260,8 @@ namespace EcobeeCLISharp
 
             if (options.Wait)
             {
-                Console.WriteLine();
-                Console.WriteLine("Press any key to continue...");
+                WriteLine();
+                WriteLine("Press any key to continue...");
                 Console.ReadKey();
             }
 
@@ -271,20 +271,20 @@ namespace EcobeeCLISharp
         private static void PrintStatus(ThermostatResponse thermostatResponse)
         {
             var thermostat = thermostatResponse.ThermostatList.First();
-            Console.WriteLine("Current Status:");
-            // Console.WriteLine($"  Name: {thermostat.Name}");
-            Console.WriteLine($"  Temperature: {thermostat.Runtime.ActualTemperature}");
-            Console.WriteLine($"  Humidity: {thermostat.Runtime.ActualHumidity}");
-            Console.WriteLine($"  Mode: {thermostat.Settings.HvacMode}");
-            Console.WriteLine($"  Desired Temperature Range: {thermostat.Runtime.DesiredHeat} - {thermostat.Runtime.DesiredCool}");
-            Console.WriteLine($"  Desired Fan: {thermostat.Runtime.DesiredFanMode}");
-            Console.WriteLine($"  Equipment Status: {thermostat.EquipmentStatus}");
-            Console.WriteLine($"  Last Status Modified: {thermostat.Runtime.LastStatusModified}");
-            Console.WriteLine($"  Last Modified: {thermostat.Runtime.LastModified}");
+            WriteLine("Current Status:");
+            // WriteLine($"  Name: {thermostat.Name}");
+            WriteLine($"  Temperature: {thermostat.Runtime.ActualTemperature}");
+            WriteLine($"  Humidity: {thermostat.Runtime.ActualHumidity}");
+            WriteLine($"  Mode: {thermostat.Settings.HvacMode}");
+            WriteLine($"  Desired Temperature Range: {thermostat.Runtime.DesiredHeat} - {thermostat.Runtime.DesiredCool}");
+            WriteLine($"  Desired Fan: {thermostat.Runtime.DesiredFanMode}");
+            WriteLine($"  Equipment Status: {thermostat.EquipmentStatus}");
+            WriteLine($"  Last Status Modified: {thermostat.Runtime.LastStatusModified}");
+            WriteLine($"  Last Modified: {thermostat.Runtime.LastModified}");
             if (thermostat.Events.Count > 0)
             {
                 var currentEvent = thermostat.Events.First();
-                Console.WriteLine($"  Current Event: End Time: {currentEvent.EndTime}");
+                WriteLine($"  Current Event: End Time: {currentEvent.EndTime}");
             }
         }
 
@@ -422,6 +422,18 @@ namespace EcobeeCLISharp
         {
             var fileText = await File.ReadAllLinesAsync(CredentialsFilePath);
             return fileText[0].Trim();
+        }
+
+        private static void WriteLine(string? message = null)
+        {
+            if (message is null)
+            {
+                Console.WriteLine();
+            }
+            else
+            {
+                Console.WriteLine(message);
+            }
         }
 
         private static void VerboseWriteLine(string message, bool force = false)
