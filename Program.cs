@@ -35,6 +35,9 @@ namespace EcobeeCLISharp
             // [Option('h', "hold", SetName = "holdprogram", HelpText = "Set desired hold program: resumeProgram/resume, [program name]")]
             // public string? Hold { get; set; }
 
+            [Option("daemon", Default = false, SetName = "holdparams", HelpText = "Run as daemon")]
+            public bool Daemon { get; set; }
+
             [Option('v', "verbose", Default = false, HelpText = "Print all messages to standard output")]
             public bool Verbose { get; set; }
 
@@ -100,6 +103,11 @@ namespace EcobeeCLISharp
             if (options.InfoBefore)
             {
                 PrintStatus(initialThermostatResponse);
+            }
+
+            if (options.Daemon)
+            {
+                return await RunDaemon(options, client);
             }
 
             var thermostat = initialThermostatResponse.GetFirstThermostat();
@@ -266,6 +274,66 @@ namespace EcobeeCLISharp
             }
 
             return 0;
+        }
+
+        private static async Task<int> RunDaemon(Options options, Client client)
+        {
+            if (options.Heat is null || options.Cool is null)
+            {
+                WriteLine("Heat and cool temperatures must be specified when running as daemon");
+                return 1;
+            }
+            var targetHeat = ParseTemperature(options.Heat);
+            var targetCool = ParseTemperature(options.Cool);
+            if (targetHeat >= targetCool)
+            {
+                WriteLine("Heat temperature must be less than cool temperature");
+                return 1;
+            }
+
+            var thermostatResponse = await GetThermostatAsync(client);
+            var thermostat = thermostatResponse.GetFirstThermostat();
+            if (thermostat.Settings.HeatCoolMinDelta is null)
+            {
+                WriteLine("Heat cool min delta not set");
+                return 1;
+            }
+            var heatCoolMinDelta = ConvertTemperature(thermostat.Settings.HeatCoolMinDelta.Value);
+
+            while (true)
+            {
+                await Task.Delay(60*1000);
+                thermostatResponse = await GetThermostatAsync(client);
+                // PrintStatus(thermostatResponse);
+                thermostat = thermostatResponse.GetFirstThermostat();
+
+                if (thermostat.Runtime.ActualTemperature == null)
+                {
+                    WriteLine("Actual temperature not available");
+                    continue;
+                }
+                var currentTemperature = ConvertTemperature(thermostat.Runtime.ActualTemperature.Value);
+                VerboseWriteLine($"Temperature: {currentTemperature}");
+
+                if (currentTemperature <= targetHeat)
+                {
+                    WriteLine("Setting hold to heat");
+                    await UpdateThermostatAsync(client, new SetHoldParams
+                    {
+                        HeatHoldTemp = ConvertTemperature(targetHeat),
+                        CoolHoldTemp = ConvertTemperature(targetHeat + heatCoolMinDelta),
+                    });
+                }
+                else if (currentTemperature >= targetCool)
+                {
+                    WriteLine("Setting hold to cool");
+                    await UpdateThermostatAsync(client, new SetHoldParams
+                    {
+                        HeatHoldTemp = ConvertTemperature(targetCool - heatCoolMinDelta),
+                        CoolHoldTemp = ConvertTemperature(targetCool),
+                    });
+                }
+            }
         }
 
         private static void PrintStatus(ThermostatResponse thermostatResponse)

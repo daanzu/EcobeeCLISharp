@@ -15,20 +15,22 @@
             // "args": [],
             "args": [
                 // "--fan=off",
-                "--fan=on",
-                // "--cool=74",
-                // "--heat=75",
+                // "--fan=on",
+                // "--heat=76",
+                // "--cool=80",
                 // "holdtype=indefinite",
                 "--infobefore",
-                "--infoafter",
+                // "--infoafter",
+                // "--verbose",
                 // "--wait",
                 // "--infoafter", "--wait",
                 // "--hide",
+                "--daemon", "--heat=77.5", "--cool=78.5",
             ],
             "cwd": "${workspaceFolder}",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
-            // "console": "internalConsole",
-            "console": "externalTerminal",
+            "console": "internalConsole",
+            // "console": "externalTerminal",
             "stopAtEntry": false
         },
         {
