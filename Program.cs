@@ -315,7 +315,7 @@ namespace EcobeeCLISharp
                 var currentTemperature = ConvertTemperature(thermostat.Runtime.ActualTemperature.Value);
                 VerboseWriteLine($"Temperature: {currentTemperature}");
 
-                if (currentTemperature <= targetHeat)
+                if (currentTemperature <= targetHeat && (thermostat.Runtime.DesiredHeat is null || ConvertTemperature(thermostat.Runtime.DesiredHeat.Value) != targetHeat))
                 {
                     WriteLine("Setting hold to heat");
                     await UpdateThermostatAsync(client, new SetHoldParams
@@ -324,7 +324,7 @@ namespace EcobeeCLISharp
                         CoolHoldTemp = ConvertTemperature(targetHeat + heatCoolMinDelta),
                     });
                 }
-                else if (currentTemperature >= targetCool)
+                else if (currentTemperature >= targetCool && (thermostat.Runtime.DesiredCool is null || ConvertTemperature(thermostat.Runtime.DesiredCool.Value) != targetCool))
                 {
                     WriteLine("Setting hold to cool");
                     await UpdateThermostatAsync(client, new SetHoldParams
