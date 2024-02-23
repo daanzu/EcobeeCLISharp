@@ -450,14 +450,14 @@ namespace EcobeeCLISharp
             text.AppendLine(storedAuthToken.AccessToken);
             text.AppendLine(storedAuthToken.RefreshToken);
 
-            await File.WriteAllTextAsync(CredentialsFilePath, text.ToString());
+            await File.WriteAllTextAsync(CredentialsFilePath, text.ToString(), cancellationToken);
         }
 
         private static async Task<StoredAuthToken?> ReadTokenFileAsync(CancellationToken cancellationToken = default)
         {
             if (_currentAuthToken == null && File.Exists(CredentialsFilePath))
             {
-                var fileText = await File.ReadAllLinesAsync(CredentialsFilePath);
+                var fileText = await File.ReadAllLinesAsync(CredentialsFilePath, cancellationToken);
                 _currentAuthToken = new StoredAuthToken
                 {
                     TokenExpiration = DateTime.Parse(fileText[1]),
@@ -467,6 +467,7 @@ namespace EcobeeCLISharp
 
                 VerboseWriteLine("Access Token: " + _currentAuthToken.AccessToken);
                 VerboseWriteLine("Refresh Token: " + _currentAuthToken.RefreshToken);
+                VerboseWriteLine("Token Expiration: " + _currentAuthToken.TokenExpiration);
             }
 
             return _currentAuthToken;
@@ -478,7 +479,7 @@ namespace EcobeeCLISharp
             {
                 return false;
             }
-            var fileText = await File.ReadAllLinesAsync(CredentialsFilePath);
+            var fileText = await File.ReadAllLinesAsync(CredentialsFilePath, cancellationToken);
             if (fileText.Length < 4)
             {
                 return false;
@@ -488,7 +489,7 @@ namespace EcobeeCLISharp
 
         private static async Task<string> ReadApiKeyFileAsync(CancellationToken cancellationToken = default)
         {
-            var fileText = await File.ReadAllLinesAsync(CredentialsFilePath);
+            var fileText = await File.ReadAllLinesAsync(CredentialsFilePath, cancellationToken);
             return fileText[0].Trim();
         }
 
