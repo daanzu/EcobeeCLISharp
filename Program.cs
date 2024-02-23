@@ -95,7 +95,6 @@ namespace EcobeeCLISharp
             else
             {
                 VerboseWriteLine("Loading existing tokens");
-                await ReadTokenFileAsync();
             }
 
             var initialThermostatResponse = await GetThermostatAsync(client);
