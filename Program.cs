@@ -500,7 +500,8 @@ namespace EcobeeCLISharp
             }
             else
             {
-                Console.WriteLine(message);
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                Console.WriteLine($"[{timestamp}] {message}");
             }
         }
 
@@ -508,7 +509,8 @@ namespace EcobeeCLISharp
         {
             if (_verbose || force)
             {
-                Console.WriteLine(message);
+                string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                Console.WriteLine($"[{timestamp}] {message}");
             }
         }
 
