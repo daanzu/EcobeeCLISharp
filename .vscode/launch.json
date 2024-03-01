@@ -25,7 +25,8 @@
                 // "--wait",
                 // "--infoafter", "--wait",
                 // "--hide",
-                "--daemon", "--heat=77.5", "--cool=78.5",
+                "--daemon", "--heat=77", "--cool=78",
+                "--daemonendtime=20:30",
             ],
             "cwd": "${workspaceFolder}",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console

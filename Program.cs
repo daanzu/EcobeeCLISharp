@@ -5,6 +5,7 @@ using I8Beef.Ecobee.Protocol.Objects;
 using I8Beef.Ecobee.Protocol.Functions;
 using I8Beef.Ecobee.Protocol.Thermostat;
 using ExtensionMethods;
+using System.Globalization;
 
 namespace EcobeeCLISharp
 {
@@ -37,6 +38,9 @@ namespace EcobeeCLISharp
 
             [Option("daemon", Default = false, SetName = "holdparams", HelpText = "Run as daemon")]
             public bool Daemon { get; set; }
+
+            [Option("daemonendtime", SetName = "holdparams", HelpText = "End time for daemon (format HH:mm 24-hour)")]
+            public string? DaemonEndTime { get; set; }
 
             [Option('v', "verbose", Default = false, HelpText = "Print all messages to standard output")]
             public bool Verbose { get; set; }
@@ -290,6 +294,9 @@ namespace EcobeeCLISharp
                 return 1;
             }
 
+            DateTime? endTime = (options.DaemonEndTime is null) ? null : DateTime.ParseExact(options.DaemonEndTime, "HH:mm", CultureInfo.InvariantCulture);
+            endTime = (endTime is not null && endTime < DateTime.Now) ? endTime.Value.AddDays(1) : endTime;
+
             var thermostatResponse = await GetThermostatAsync(client);
             var thermostat = thermostatResponse.GetFirstThermostat();
             if (thermostat.Settings.HeatCoolMinDelta is null)
@@ -302,6 +309,12 @@ namespace EcobeeCLISharp
             while (true)
             {
                 await Task.Delay(60*1000);
+                if (endTime is not null && DateTime.Now > endTime)
+                {
+                    WriteLine("Daemon ending");
+                    break;
+                }
+
                 thermostatResponse = await GetThermostatAsync(client);
                 // PrintStatus(thermostatResponse);
                 thermostat = thermostatResponse.GetFirstThermostat();
@@ -333,6 +346,8 @@ namespace EcobeeCLISharp
                     });
                 }
             }
+
+            return 0;
         }
 
         private static void PrintStatus(ThermostatResponse thermostatResponse)
