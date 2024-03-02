@@ -309,41 +309,50 @@ namespace EcobeeCLISharp
             while (true)
             {
                 await Task.Delay(60*1000);
-                if (endTime is not null && DateTime.Now > endTime)
+
+                try
                 {
-                    WriteLine("Daemon ending");
-                    break;
+                    if (endTime is not null && DateTime.Now > endTime)
+                    {
+                        WriteLine("Daemon ending");
+                        break;
+                    }
+
+                    thermostatResponse = await GetThermostatAsync(client);
+                    // PrintStatus(thermostatResponse);
+                    thermostat = thermostatResponse.GetFirstThermostat();
+
+                    if (thermostat.Runtime.ActualTemperature == null)
+                    {
+                        WriteLine("Actual temperature not available");
+                        continue;
+                    }
+                    var currentTemperature = ConvertTemperature(thermostat.Runtime.ActualTemperature.Value);
+                    VerboseWriteLine($"Temperature: {currentTemperature}");
+
+                    if (currentTemperature <= targetHeat && (thermostat.Runtime.DesiredHeat is null || ConvertTemperature(thermostat.Runtime.DesiredHeat.Value) != targetHeat))
+                    {
+                        WriteLine("Setting hold to heat");
+                        await UpdateThermostatAsync(client, new SetHoldParams
+                        {
+                            HeatHoldTemp = ConvertTemperature(targetHeat),
+                            CoolHoldTemp = ConvertTemperature(targetHeat + heatCoolMinDelta),
+                        });
+                    }
+                    else if (currentTemperature >= targetCool && (thermostat.Runtime.DesiredCool is null || ConvertTemperature(thermostat.Runtime.DesiredCool.Value) != targetCool))
+                    {
+                        WriteLine("Setting hold to cool");
+                        await UpdateThermostatAsync(client, new SetHoldParams
+                        {
+                            HeatHoldTemp = ConvertTemperature(targetCool - heatCoolMinDelta),
+                            CoolHoldTemp = ConvertTemperature(targetCool),
+                        });
+                    }
                 }
-
-                thermostatResponse = await GetThermostatAsync(client);
-                // PrintStatus(thermostatResponse);
-                thermostat = thermostatResponse.GetFirstThermostat();
-
-                if (thermostat.Runtime.ActualTemperature == null)
+                catch (HttpRequestException e)
                 {
-                    WriteLine("Actual temperature not available");
+                    WriteLine("Error: " + e.Message);
                     continue;
-                }
-                var currentTemperature = ConvertTemperature(thermostat.Runtime.ActualTemperature.Value);
-                VerboseWriteLine($"Temperature: {currentTemperature}");
-
-                if (currentTemperature <= targetHeat && (thermostat.Runtime.DesiredHeat is null || ConvertTemperature(thermostat.Runtime.DesiredHeat.Value) != targetHeat))
-                {
-                    WriteLine("Setting hold to heat");
-                    await UpdateThermostatAsync(client, new SetHoldParams
-                    {
-                        HeatHoldTemp = ConvertTemperature(targetHeat),
-                        CoolHoldTemp = ConvertTemperature(targetHeat + heatCoolMinDelta),
-                    });
-                }
-                else if (currentTemperature >= targetCool && (thermostat.Runtime.DesiredCool is null || ConvertTemperature(thermostat.Runtime.DesiredCool.Value) != targetCool))
-                {
-                    WriteLine("Setting hold to cool");
-                    await UpdateThermostatAsync(client, new SetHoldParams
-                    {
-                        HeatHoldTemp = ConvertTemperature(targetCool - heatCoolMinDelta),
-                        CoolHoldTemp = ConvertTemperature(targetCool),
-                    });
                 }
             }
 
