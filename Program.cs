@@ -306,6 +306,8 @@ namespace EcobeeCLISharp
             }
             var heatCoolMinDelta = ConvertTemperature(thermostat.Settings.HeatCoolMinDelta.Value);
 
+            decimal tempRunDelta = 0.5m;
+
             while (true)
             {
                 await Task.Delay(60*1000);
@@ -330,7 +332,7 @@ namespace EcobeeCLISharp
                     var currentTemperature = ConvertTemperature(thermostat.Runtime.ActualTemperature.Value);
                     VerboseWriteLine($"Temperature: {currentTemperature}");
 
-                    if (currentTemperature <= targetHeat && (thermostat.Runtime.DesiredHeat is null || ConvertTemperature(thermostat.Runtime.DesiredHeat.Value) != targetHeat))
+                    if (currentTemperature <= (targetHeat - tempRunDelta) && (thermostat.Runtime.DesiredHeat is null || ConvertTemperature(thermostat.Runtime.DesiredHeat.Value) != targetHeat))
                     {
                         WriteLine("Setting hold to heat");
                         await UpdateThermostatAsync(client, new SetHoldParams
@@ -339,7 +341,7 @@ namespace EcobeeCLISharp
                             CoolHoldTemp = ConvertTemperature(targetHeat + heatCoolMinDelta),
                         });
                     }
-                    else if (currentTemperature >= targetCool && (thermostat.Runtime.DesiredCool is null || ConvertTemperature(thermostat.Runtime.DesiredCool.Value) != targetCool))
+                    else if (currentTemperature >= (targetCool + tempRunDelta) && (thermostat.Runtime.DesiredCool is null || ConvertTemperature(thermostat.Runtime.DesiredCool.Value) != targetCool))
                     {
                         WriteLine("Setting hold to cool");
                         await UpdateThermostatAsync(client, new SetHoldParams
