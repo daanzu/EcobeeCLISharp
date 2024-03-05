@@ -39,6 +39,9 @@ namespace EcobeeCLISharp
             [Option("daemon", Default = false, SetName = "holdparams", HelpText = "Run as daemon")]
             public bool Daemon { get; set; }
 
+            [Option("daemonstartdelay", SetName = "holdparams", HelpText = "Start delay for daemon (format HH:mm or mm)")]
+            public string? DaemonStartDelay { get; set; }
+
             [Option("daemonendtime", SetName = "holdparams", HelpText = "End time for daemon (format HH:mm 24-hour)")]
             public string? DaemonEndTime { get; set; }
 
@@ -294,9 +297,6 @@ namespace EcobeeCLISharp
                 return 1;
             }
 
-            DateTime? endTime = (options.DaemonEndTime is null) ? null : DateTime.ParseExact(options.DaemonEndTime, "HH:mm", CultureInfo.InvariantCulture);
-            endTime = (endTime is not null && endTime < DateTime.Now) ? endTime.Value.AddDays(1) : endTime;
-
             var thermostatResponse = await GetThermostatAsync(client);
             var thermostat = thermostatResponse.GetFirstThermostat();
             if (thermostat.Settings.HeatCoolMinDelta is null)
@@ -308,9 +308,21 @@ namespace EcobeeCLISharp
 
             decimal tempRunDelta = 0.5m;
 
+            DateTime? endTime = (options.DaemonEndTime is null) ? null : DateTime.ParseExact(options.DaemonEndTime, "HH:mm", CultureInfo.InvariantCulture);
+            endTime = (endTime is not null && endTime < DateTime.Now) ? endTime.Value.AddDays(1) : endTime;
+
+            if (options.DaemonStartDelay is not null)
+            {
+                var format = (options.DaemonStartDelay.Contains(":")) ? "HH:mm" : "mm";
+                var startDelay = TimeSpan.ParseExact(options.DaemonStartDelay, format, CultureInfo.InvariantCulture);
+                WriteLine($"Daemon starting in {startDelay.TotalMinutes} minutes...");
+                await Task.Delay(startDelay);
+                WriteLine("Daemon starting after start delay");
+            }
+
             while (true)
             {
-                await Task.Delay(60*1000);
+                await Task.Delay(TimeSpan.FromMinutes(1));
 
                 try
                 {
