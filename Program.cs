@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using I8Beef.Ecobee;
+using I8Beef.Ecobee.Exceptions;
 using I8Beef.Ecobee.Protocol;
 using I8Beef.Ecobee.Protocol.Objects;
 using I8Beef.Ecobee.Protocol.Functions;
@@ -13,10 +14,26 @@ namespace EcobeeCLISharp
     {
         public static async Task<int> Main(string[] args)
         {
-            return await Parser.Default.ParseArguments<Options>(args)
-                .MapResult(
-                    (Options options) => RunOptionsAndReturnExitCode(options),
-                    errs => Task.FromResult(1));
+            try
+            {
+                return await Parser.Default.ParseArguments<Options>(args)
+                    .MapResult(
+                        (Options options) => RunOptionsAndReturnExitCode(options),
+                        errs => Task.FromResult(1));
+            }
+            catch (ApiException ex)
+            {
+                if (ex.Message == "14: Authentication token has expired. Refresh your tokens.")
+                {
+                    await TrimApiKeyFileAsync();
+                    WriteLine("Authentication token has expired. Trimmed API key file. Please re-run the program to re-authenticate via \"Add Application\" flow on Ecobee site.");
+                    return 1;
+                }
+                else
+                {
+                    throw;
+                }
+            }
         }
 
         public class Options
@@ -84,11 +101,16 @@ namespace EcobeeCLISharp
 
             if (!File.Exists(CredentialsFilePath))
             {
-                WriteLine("Credentials file not found. Please create ecobee_credentials.txt in the same directory as this executable.");
+                WriteLine($"Credentials file not found. Please create {CredentialsFilePath}");
                 return 1;
             }
 
             _appApiKey = await ReadApiKeyFileAsync();
+            if (_appApiKey == null)
+            {
+                WriteLine($"Developer app API key not found. It should be on first line of {CredentialsFilePath}");
+                return 1;
+            }
             var client = new Client(_appApiKey, ReadTokenFileAsync, WriteTokenFileAsync);
 
             if (!await HaveTokenFileAsync())
@@ -557,7 +579,21 @@ namespace EcobeeCLISharp
         private static async Task<string> ReadApiKeyFileAsync(CancellationToken cancellationToken = default)
         {
             var fileText = await File.ReadAllLinesAsync(CredentialsFilePath, cancellationToken);
+            if (fileText.Length < 1)
+            {
+                return null!;
+            }
             return fileText[0].Trim();
+        }
+
+        private static async Task TrimApiKeyFileAsync(CancellationToken cancellationToken = default)
+        {
+            var apiKey = await ReadApiKeyFileAsync(cancellationToken);
+            if (apiKey == null)
+            {
+                return;
+            }
+            await File.WriteAllTextAsync(CredentialsFilePath, apiKey + Environment.NewLine, cancellationToken);
         }
 
         private static void WriteLine(string? message = null)
