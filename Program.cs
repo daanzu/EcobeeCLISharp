@@ -45,6 +45,9 @@ namespace EcobeeCLISharp
             [Option("daemonendtime", SetName = "holdparams", HelpText = "End time for daemon (format HH:mm 24-hour)")]
             public string? DaemonEndTime { get; set; }
 
+            [Option("daemonminsetinterval", SetName = "holdparams", HelpText = "Minimum time between setting hold (format mm)")]
+            public string? DaemonMinSetInterval { get; set; }
+
             [Option('v', "verbose", Default = false, HelpText = "Print all messages to standard output")]
             public bool Verbose { get; set; }
 
@@ -114,6 +117,21 @@ namespace EcobeeCLISharp
             if (options.Daemon)
             {
                 return await RunDaemon(options, client);
+            }
+            else
+            {
+                if (options.DaemonStartDelay is not null)
+                {
+                    WriteLine("Daemon start delay only applies when running as daemon");
+                }
+                if (options.DaemonEndTime is not null)
+                {
+                    WriteLine("Daemon end time only applies when running as daemon");
+                }
+                if (options.DaemonMinSetInterval is not null)
+                {
+                    WriteLine("Daemon minimum set interval only applies when running as daemon");
+                }
             }
 
             var thermostat = initialThermostatResponse.GetFirstThermostat();
@@ -308,6 +326,9 @@ namespace EcobeeCLISharp
 
             decimal tempRunDelta = 0.5m;
 
+            TimeSpan? setChangeInterval = (options.DaemonMinSetInterval is null) ? null : TimeSpan.ParseExact(options.DaemonMinSetInterval, "mm", CultureInfo.InvariantCulture);
+            DateTime? lastSetChangeTime = null;
+
             DateTime? endTime = (options.DaemonEndTime is null) ? null : DateTime.ParseExact(options.DaemonEndTime, "HH:mm", CultureInfo.InvariantCulture);
             endTime = (endTime is not null && endTime < DateTime.Now) ? endTime.Value.AddDays(1) : endTime;
 
@@ -344,7 +365,10 @@ namespace EcobeeCLISharp
                     var currentTemperature = ConvertTemperature(thermostat.Runtime.ActualTemperature.Value);
                     VerboseWriteLine($"Temperature: {currentTemperature}");
 
-                    if (currentTemperature <= (targetHeat - tempRunDelta) && (thermostat.Runtime.DesiredHeat is null || ConvertTemperature(thermostat.Runtime.DesiredHeat.Value) != targetHeat))
+                    // Logic: change set point range if: current temperature is outside of target range (beyond target by tempRunDelta), AND set point is not already set appropriately, AND it's been at least setChangeInterval since the last change.
+                    if (currentTemperature <= (targetHeat - tempRunDelta)
+                        && (thermostat.Runtime.DesiredHeat is null || ConvertTemperature(thermostat.Runtime.DesiredHeat.Value) != targetHeat)
+                        && (lastSetChangeTime is null || lastSetChangeTime + setChangeInterval < DateTime.Now))
                     {
                         WriteLine("Setting hold to heat");
                         await UpdateThermostatAsync(client, new SetHoldParams
@@ -352,8 +376,11 @@ namespace EcobeeCLISharp
                             HeatHoldTemp = ConvertTemperature(targetHeat),
                             CoolHoldTemp = ConvertTemperature(targetHeat + heatCoolMinDelta),
                         });
+                        lastSetChangeTime = DateTime.Now;
                     }
-                    else if (currentTemperature >= (targetCool + tempRunDelta) && (thermostat.Runtime.DesiredCool is null || ConvertTemperature(thermostat.Runtime.DesiredCool.Value) != targetCool))
+                    else if (currentTemperature >= (targetCool + tempRunDelta)
+                        && (thermostat.Runtime.DesiredCool is null || ConvertTemperature(thermostat.Runtime.DesiredCool.Value) != targetCool)
+                        && (lastSetChangeTime is null || lastSetChangeTime + setChangeInterval < DateTime.Now))
                     {
                         WriteLine("Setting hold to cool");
                         await UpdateThermostatAsync(client, new SetHoldParams
@@ -361,6 +388,7 @@ namespace EcobeeCLISharp
                             HeatHoldTemp = ConvertTemperature(targetCool - heatCoolMinDelta),
                             CoolHoldTemp = ConvertTemperature(targetCool),
                         });
+                        lastSetChangeTime = DateTime.Now;
                     }
                 }
                 catch (HttpRequestException e)
