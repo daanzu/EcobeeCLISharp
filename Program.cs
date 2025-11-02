@@ -391,9 +391,11 @@ namespace EcobeeCLISharp
                         lastSetChangeTime = DateTime.Now;
                     }
                 }
-                catch (HttpRequestException e)
+                // System.Net.Http.HttpRequestException
+                // Newtonsoft.Json.JsonReaderException
+                catch (Exception e)
                 {
-                    WriteLine("Error: " + e.Message);
+                    WriteLine($"Error: {e.GetType().Name} - {e.Message}");
                     continue;
                 }
             }
