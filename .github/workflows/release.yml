@@ -18,15 +18,27 @@ jobs:
           - os: ubuntu-latest
             rid: win-x64
             artifact_name: EcobeeCLISharp-win-x64
-            extension: .exe
+            self_contained: false
+          - os: ubuntu-latest
+            rid: win-x64
+            artifact_name: EcobeeCLISharp-win-x64-standalone
+            self_contained: true
           - os: ubuntu-latest
             rid: linux-x64
             artifact_name: EcobeeCLISharp-linux-x64
-            extension: ""
+            self_contained: false
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact_name: EcobeeCLISharp-linux-x64-standalone
+            self_contained: true
           - os: ubuntu-latest
             rid: osx-x64
             artifact_name: EcobeeCLISharp-osx-x64
-            extension: ""
+            self_contained: false
+          - os: ubuntu-latest
+            rid: osx-x64
+            artifact_name: EcobeeCLISharp-osx-x64-standalone
+            self_contained: true
 
     runs-on: ${{ matrix.os }}
 
@@ -43,7 +55,7 @@ jobs:
       run: dotnet restore
 
     - name: Publish
-      run: dotnet publish EcobeeCLISharp.csproj -c Release -r ${{ matrix.rid }} --self-contained false -p:PublishSingleFile=true -o ./publish
+      run: dotnet publish EcobeeCLISharp.csproj -c Release -r ${{ matrix.rid }} --self-contained ${{ matrix.self_contained }} -p:PublishSingleFile=true -o ./publish
 
     - name: Zip Artifact
       shell: bash
