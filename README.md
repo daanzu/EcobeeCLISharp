@@ -1,5 +1,10 @@
 # EcobeeCLISharp
 
+[![Build and Release](https://github.com/daanzu/EcobeeCLISharp/actions/workflows/release.yml/badge.svg)](https://github.com/daanzu/EcobeeCLISharp/actions/workflows/release.yml)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/daanzu/EcobeeCLISharp)](https://github.com/daanzu/EcobeeCLISharp/releases)
+[![License](https://img.shields.io/github/license/daanzu/EcobeeCLISharp)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512bd4)](https://dotnet.microsoft.com/download/dotnet/10.0)
+
 A command-line interface for controlling Ecobee thermostats.
 
 ## Features
@@ -10,11 +15,42 @@ A command-line interface for controlling Ecobee thermostats.
 - Daemon mode for continuous temperature monitoring and adjustment
 - Query thermostat status before/after changes
 
+## Example
+
+```bash
+> ./EcobeeCLISharp.exe --infobefore --infoafter --heat=-0.5 --fan=off
+[2025-12-30 21:58:03] Current Status:
+[2025-12-30 21:58:03]   Temperature: 751
+[2025-12-30 21:58:03]   Humidity: 25
+[2025-12-30 21:58:03]   Mode: auto
+[2025-12-30 21:58:03]   Desired Temperature Range: 755 - 850
+[2025-12-30 21:58:03]   Desired Fan: auto
+[2025-12-30 21:58:03]   Equipment Status:
+[2025-12-30 21:58:03]   Last Status Modified: 2025-12-31 02:57:40
+[2025-12-30 21:58:03]   Last Modified: 2025-12-31 02:56:25
+[2025-12-30 21:58:03]   Current Event: End Time: 21:55:08
+[2025-12-30 21:58:03] {"selection":{"selectionType":"registered"},"functions":[{"type":"setHold","params":{"coolHoldTemp":850,"heatHoldTemp":750,"fan":"auto","holdType":"nextTransition"}}]}
+[2025-12-30 21:58:03] {"status":{"code":0,"message":""}}
+[2025-12-30 21:58:03] Current Status:
+[2025-12-30 21:58:03]   Temperature: 751
+[2025-12-30 21:58:03]   Humidity: 25
+[2025-12-30 21:58:03]   Mode: auto
+[2025-12-30 21:58:03]   Desired Temperature Range: 750 - 850
+[2025-12-30 21:58:03]   Desired Fan: auto
+[2025-12-30 21:58:03]   Equipment Status:
+[2025-12-30 21:58:03]   Last Status Modified: 2025-12-31 02:57:40
+[2025-12-30 21:58:03]   Last Modified: 2025-12-31 02:56:25
+[2025-12-30 21:58:03]   Current Event: End Time: 21:58:04
+[2025-12-30 21:58:03] Waiting for thermostat to update
+```
+
 ## Installation
 
-1. Download and extract the release for your platform (win-x64, linux-x64, or osx-x64)
-2. Create `ecobee_credentials.txt` in the same directory as the executable
-3. Add your Ecobee Developer API key as the first line
+1. Download and extract the release for your platform (win-x64, linux-x64, or osx-x64).
+   - **Standalone** versions include the .NET runtime and do not require any pre-installed software. Choose this if you want the simplest setup or don't want to install .NET.
+   - **Runtime dependent** versions are much smaller but require the [.NET 10.0 runtime](https://dotnet.microsoft.com/download/dotnet/10.0) to be installed on your system. Choose this if you already have .NET installed or want to save disk space.
+2. Create `ecobee_credentials.txt` in the same directory as the executable.
+3. Add your Ecobee Developer API key as the first line.
 
 ## Usage
 
@@ -75,9 +111,10 @@ On first run, you'll receive a PIN code. Enter this at https://www.ecobee.com/co
 
 ## Requirements
 
-- .NET 6.0 Runtime
+- .NET 10.0 Runtime (only for **runtime dependent** versions, or for building from source)
 - Ecobee Developer API key from https://www.ecobee.com/developers/
 
 ## License
 
-See LICENSE file for details.
+This project is licensed under the GNU General Public License v3.0.
+See [LICENSE](LICENSE) file for details.
