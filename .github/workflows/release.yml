@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     branches:
-      - main
+      - master
     tags:
       - 'v*'
 
@@ -12,7 +12,23 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: win-x64
+            artifact_name: EcobeeCLISharp-win-x64
+            extension: .exe
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact_name: EcobeeCLISharp-linux-x64
+            extension: ""
+          - os: ubuntu-latest
+            rid: osx-x64
+            artifact_name: EcobeeCLISharp-osx-x64
+            extension: ""
+
+    runs-on: ${{ matrix.os }}
 
     steps:
     - name: Checkout code
@@ -26,24 +42,24 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
-    - name: Build
-      run: dotnet build -c Release --no-restore
-
     - name: Publish
-      run: dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ./publish
+      run: dotnet publish -c Release -r ${{ matrix.rid }} --self-contained false -p:PublishSingleFile=true -o ./publish
 
     - name: Zip Artifact
-      run: Compress-Archive -Path ./publish/* -DestinationPath EcobeeCLISharp-win-x64.zip
+      shell: bash
+      run: |
+        cd publish
+        zip -r ../${{ matrix.artifact_name }}.zip ./*
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: EcobeeCLISharp-win-x64
-        path: EcobeeCLISharp-win-x64.zip
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.zip
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/v')
       with:
-        files: EcobeeCLISharp-win-x64.zip
+        files: ${{ matrix.artifact_name }}.zip
         generate_release_notes: true

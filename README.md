@@ -1,9 +1,10 @@
 # EcobeeCLISharp
 
-A command-line interface for controlling Ecobee thermostats on Windows.
+A command-line interface for controlling Ecobee thermostats.
 
 ## Features
 
+- Cross-platform support (Windows, Linux, macOS)
 - Set heat and cool temperatures (absolute or relative values)
 - Control fan modes (auto/on)
 - Daemon mode for continuous temperature monitoring and adjustment
@@ -11,7 +12,7 @@ A command-line interface for controlling Ecobee thermostats on Windows.
 
 ## Installation
 
-1. Download and extract the release
+1. Download and extract the release for your platform (win-x64, linux-x64, or osx-x64)
 2. Create `ecobee_credentials.txt` in the same directory as the executable
 3. Add your Ecobee Developer API key as the first line
 
@@ -21,7 +22,11 @@ A command-line interface for controlling Ecobee thermostats on Windows.
 
 Set temperatures:
 ```bash
+# Windows
 EcobeeCLISharp.exe --heat 68 --cool 72
+
+# Linux/macOS
+./EcobeeCLISharp --heat 68 --cool 72
 ```
 
 Relative adjustments:
