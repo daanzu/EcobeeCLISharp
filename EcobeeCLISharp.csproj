@@ -11,6 +11,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="EcobeeCLISharp.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="EcobeeCLISharp.Tests\**" />
+    <None Remove="EcobeeCLISharp.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="I8Beef.Ecobee" Version="3.0.0.84" />
     <PackageReference Include="CommandLineParser" Version="2.9.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

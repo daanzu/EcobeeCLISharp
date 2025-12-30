@@ -445,12 +445,18 @@ namespace EcobeeCLISharp
             }
         }
 
-        private static decimal ConvertTemperature(int temperature) => Convert.ToDecimal(temperature) / 10;  // Convert from API's tenths of a degree to degrees
-        private static int ConvertTemperature(decimal temperature) => Convert.ToInt32(temperature * 10);  // Convert from degrees to API's tenths of a degree
+        /// <summary>Convert from API's tenths of a degree to degrees.</summary>
+        public static decimal ConvertTemperatureFromApi(int temperature) => Convert.ToDecimal(temperature) / 10;
 
-        private static decimal ParseTemperature(string temperature) => Convert.ToDecimal(temperature);
+        /// <summary>Convert from degrees to API's tenths of a degree.</summary>
+        public static int ConvertTemperatureToApi(decimal temperature) => Convert.ToInt32(temperature * 10);
 
-        private static decimal ParsePossiblyRelativeTemperature(string temperature, decimal currentTemperature)
+        private static decimal ConvertTemperature(int temperature) => ConvertTemperatureFromApi(temperature);
+        private static int ConvertTemperature(decimal temperature) => ConvertTemperatureToApi(temperature);
+
+        public static decimal ParseTemperature(string temperature) => Convert.ToDecimal(temperature);
+
+        public static decimal ParsePossiblyRelativeTemperature(string temperature, decimal currentTemperature)
         {
             if (temperature.StartsWith("+"))
             {
