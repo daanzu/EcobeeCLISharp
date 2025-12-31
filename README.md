@@ -77,7 +77,7 @@ EcobeeCLISharp.exe --fan on
 
 View status:
 ```bash
-EcobeeCLISharp.exe --infobefore --infoafter
+EcobeeCLISharp.exe --infobefore
 ```
 
 ### Daemon Mode
