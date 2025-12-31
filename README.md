@@ -114,6 +114,10 @@ On first run, you'll receive a PIN code. Enter this at https://www.ecobee.com/co
 - .NET 10.0 Runtime (only for **runtime dependent** versions, or for building from source)
 - Ecobee Developer API key from https://www.ecobee.com/developers/
 
+## Thanks
+
+This project relies on the [I8Beef.Ecobee](https://github.com/i8beef/Ecobee) library for interacting with the Ecobee API.
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0.
