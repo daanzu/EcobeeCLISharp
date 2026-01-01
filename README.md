@@ -113,6 +113,7 @@ On first run, you'll receive a PIN code. Enter this at https://www.ecobee.com/co
 
 - .NET 10.0 Runtime (only for **runtime dependent** versions, or for building from source)
 - Ecobee Developer API key from https://www.ecobee.com/developers/
+   - When registering your application in the Ecobee Developer portal, choose the Authorization method: "ecobee PIN".  This enables the PIN-based flow described in the "First Run" section.
 
 ## Thanks
 
